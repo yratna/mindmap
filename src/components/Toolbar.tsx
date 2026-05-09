@@ -2,12 +2,14 @@ import React from 'react';
 import { useMindMapStore } from '../store/mindMapStore';
 import { exportToJson, importFromJson } from '../utils/fileIO';
 import { exportToPng } from '../utils/exportPng';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ToolbarProps {
   onShowMaps: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({ onShowMaps }) => {
+  const { user, signOut } = useAuth();
   const selectedId = useMindMapStore((s) => s.selectedId);
   const rootId = useMindMapStore((s) => s.rootId);
   const nodes = useMindMapStore((s) => s.nodes);
@@ -96,6 +98,24 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onShowMaps }) => {
           <span className="btn-icon">🖼</span> PNG
         </button>
       </div>
+      <div className="toolbar-spacer" />
+      {user ? (
+        <div className="toolbar-group toolbar-user">
+          <span className="toolbar-user-name" title={user.email || ''}>
+            {user.user_metadata?.avatar_url && (
+              <img src={user.user_metadata.avatar_url} className="toolbar-avatar" alt="" />
+            )}
+            {user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}
+          </span>
+          <button onClick={signOut} title="Sign out">
+            Sign out
+          </button>
+        </div>
+      ) : (
+        <div className="toolbar-group toolbar-user">
+          <span className="toolbar-guest-badge">Guest</span>
+        </div>
+      )}
     </div>
   );
 };

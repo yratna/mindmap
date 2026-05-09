@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { MindMapNode, MindMapState } from '../types';
+import { updateMap as updateMapApi } from '../lib/mapsApi';
 
 const generateId = () => Math.random().toString(36).substring(2, 10);
 
@@ -19,7 +20,7 @@ export function getNodeColor(depth: number, override?: string): string {
   return depth < DEPTH_COLORS.length ? DEPTH_COLORS[depth] : DEFAULT_NODE_COLOR;
 }
 
-function createInitialState(): MindMapState {
+export function createInitialState(): MindMapState {
   const rootId = generateId();
   return {
     rootId,
@@ -123,6 +124,18 @@ function loadFromStorage(): { state: MindMapState; mapId: string | null } | null
   return null;
 }
 
+// Debounced cloud sync
+let _syncTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedCloudSync(state: MindMapState, mapId: string | null) {
+  if (!mapId) return;
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => {
+    updateMapApi(mapId, state).catch(() => {
+      // Silent fail — localStorage is the source of truth
+    });
+  }, 1500);
+}
+
 function saveToStorage(state: MindMapState, mapId: string | null) {
   try {
     const payload = JSON.stringify({ nodes: state.nodes, rootId: state.rootId, selectedId: state.selectedId });
@@ -139,6 +152,7 @@ function saveToStorage(state: MindMapState, mapId: string | null) {
     } else {
       localStorage.setItem(STORAGE_KEY, payload);
     }
+    debouncedCloudSync(state, mapId);
   } catch {}
 }
 

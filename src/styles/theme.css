@@ -480,3 +480,150 @@ html, body, #root {
   outline: none;
   width: 100%;
 }
+
+.maps-cloud-badge {
+  margin-left: 6px;
+  font-size: 12px;
+}
+
+/* ===== Toolbar User Section ===== */
+.toolbar-spacer {
+  flex: 1;
+}
+
+.toolbar-user {
+  margin-left: auto;
+}
+
+.toolbar-user-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.toolbar-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.toolbar-guest-badge {
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+/* ===== Login Page ===== */
+.login-page {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+}
+
+.login-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 40px;
+  width: 400px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.login-title {
+  color: var(--text-primary);
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.login-subtitle {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 32px;
+}
+
+.login-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.login-btn-github {
+  background: #24292e;
+  color: #fff;
+}
+
+.login-btn-github:hover {
+  background: #2f363d;
+}
+
+.login-btn-google {
+  background: #fff;
+  color: #333;
+}
+
+.login-btn-google:hover {
+  background: #f0f0f0;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  margin: 24px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.login-divider span {
+  padding: 0 12px;
+}
+
+.login-btn-guest {
+  background: transparent;
+  color: var(--text-secondary);
+  flex-direction: column;
+  gap: 4px;
+}
+
+.login-btn-guest:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.login-guest-note {
+  font-size: 11px;
+  opacity: 0.6;
+  font-weight: 400;
+}

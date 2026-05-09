@@ -1,11 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMindMapStore, getMapsIndex, SavedMapEntry } from '../store/mindMapStore';
+import { useAuth } from '../contexts/AuthContext';
+import { fetchMaps, createMap, deleteMapApi, renameMapApi, MapEntry } from '../lib/mapsApi';
 
 interface MapsBrowserProps {
   onClose: () => void;
 }
 
+interface DisplayMap {
+  id: string;
+  name: string;
+  updatedAt: number;
+  source: 'cloud' | 'local';
+}
+
 export const MapsBrowser: React.FC<MapsBrowserProps> = ({ onClose }) => {
+  const { user } = useAuth();
   const currentMapId = useMindMapStore((s) => s.currentMapId);
   const loadMap = useMindMapStore((s) => s.loadMap);
   const deleteMap = useMindMapStore((s) => s.deleteMap);
@@ -13,49 +23,119 @@ export const MapsBrowser: React.FC<MapsBrowserProps> = ({ onClose }) => {
   const renameMap = useMindMapStore((s) => s.renameMap);
   const saveMap = useMindMapStore((s) => s.saveMap);
 
-  const [maps, setMaps] = useState<SavedMapEntry[]>(getMapsIndex);
+  const [maps, setMaps] = useState<DisplayMap[]>([]);
+  const [loading, setLoading] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState('');
   const [newMapName, setNewMapName] = useState('');
 
-  const refresh = () => setMaps(getMapsIndex());
+  const loadMaps = async () => {
+    if (user) {
+      setLoading(true);
+      try {
+        const cloudMaps = await fetchMaps();
+        setMaps(cloudMaps.map((m) => ({
+          id: m.id,
+          name: m.name,
+          updatedAt: new Date(m.updated_at).getTime(),
+          source: 'cloud' as const,
+        })));
+      } catch {
+        // Fallback to local
+        setMaps(getMapsIndex().map((m) => ({
+          id: m.id,
+          name: m.name,
+          updatedAt: m.updatedAt,
+          source: 'local' as const,
+        })));
+      }
+      setLoading(false);
+    } else {
+      setMaps(getMapsIndex().map((m) => ({
+        id: m.id,
+        name: m.name,
+        updatedAt: m.updatedAt,
+        source: 'local' as const,
+      })));
+    }
+  };
 
-  const handleOpen = (mapId: string) => {
-    // Save current map before switching
+  useEffect(() => { loadMaps(); }, [user]);
+
+  const handleOpen = async (map: DisplayMap) => {
     saveMap();
-    loadMap(mapId);
+    if (map.source === 'cloud') {
+      // Load from Supabase
+      const { fetchMap } = await import('../lib/mapsApi');
+      const cloudMap = await fetchMap(map.id);
+      if (cloudMap && cloudMap.data) {
+        const store = useMindMapStore.getState();
+        useMindMapStore.setState({
+          nodes: cloudMap.data.nodes,
+          rootId: cloudMap.data.rootId,
+          selectedId: cloudMap.data.selectedId || cloudMap.data.rootId,
+          currentMapId: cloudMap.id,
+          _undoStack: [],
+          _redoStack: [],
+        } as any);
+        // Also cache in localStorage
+        const payload = JSON.stringify(cloudMap.data);
+        localStorage.setItem('mindmap-map-' + cloudMap.id, payload);
+        localStorage.setItem('mindmap-active-map', cloudMap.id);
+      }
+    } else {
+      loadMap(map.id);
+    }
     onClose();
   };
 
-  const handleDelete = (mapId: string, e: React.MouseEvent) => {
+  const handleDelete = async (map: DisplayMap, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (maps.length <= 1 && mapId === currentMapId) {
-      // Last map — just create a new one
-      deleteMap(mapId);
-      refresh();
-      return;
+    if (map.source === 'cloud') {
+      await deleteMapApi(map.id);
     }
-    deleteMap(mapId);
-    refresh();
+    deleteMap(map.id);
+    await loadMaps();
   };
 
-  const handleRenameStart = (entry: SavedMapEntry, e: React.MouseEvent) => {
+  const handleRenameStart = (map: DisplayMap, e: React.MouseEvent) => {
     e.stopPropagation();
-    setRenamingId(entry.id);
-    setRenameText(entry.name);
+    setRenamingId(map.id);
+    setRenameText(map.name);
   };
 
-  const handleRenameSubmit = (mapId: string) => {
+  const handleRenameSubmit = async (map: DisplayMap) => {
     if (renameText.trim()) {
-      renameMap(mapId, renameText.trim());
-      refresh();
+      if (map.source === 'cloud') {
+        await renameMapApi(map.id, renameText.trim());
+      }
+      renameMap(map.id, renameText.trim());
+      await loadMaps();
     }
     setRenamingId(null);
   };
 
-  const handleCreateNew = () => {
+  const handleCreateNew = async () => {
     saveMap();
-    createNewMap(newMapName.trim() || undefined);
+    if (user) {
+      try {
+        const { createInitialState } = await import('../store/mindMapStore');
+        const newState = createInitialState();
+        const name = newMapName.trim() || 'Untitled Map';
+        const cloudMap = await createMap(name, newState);
+        useMindMapStore.setState({
+          ...newState,
+          currentMapId: cloudMap.id,
+          _undoStack: [],
+          _redoStack: [],
+        } as any);
+        localStorage.setItem('mindmap-active-map', cloudMap.id);
+      } catch {
+        createNewMap(newMapName.trim() || undefined);
+      }
+    } else {
+      createNewMap(newMapName.trim() || undefined);
+    }
     setNewMapName('');
     onClose();
   };
@@ -86,16 +166,17 @@ export const MapsBrowser: React.FC<MapsBrowserProps> = ({ onClose }) => {
         </div>
 
         <div className="maps-list">
-          {maps.length === 0 && (
+          {loading && <div className="maps-empty">Loading maps...</div>}
+          {!loading && maps.length === 0 && (
             <div className="maps-empty">No saved maps yet. Create one above!</div>
           )}
-          {maps
+          {!loading && maps
             .sort((a, b) => b.updatedAt - a.updatedAt)
             .map((entry) => (
               <div
                 key={entry.id}
                 className={`maps-item ${entry.id === currentMapId ? 'active' : ''}`}
-                onClick={() => handleOpen(entry.id)}
+                onClick={() => handleOpen(entry)}
               >
                 <div className="maps-item-info">
                   {renamingId === entry.id ? (
@@ -103,16 +184,19 @@ export const MapsBrowser: React.FC<MapsBrowserProps> = ({ onClose }) => {
                       className="maps-rename-input"
                       value={renameText}
                       onChange={(e) => setRenameText(e.target.value)}
-                      onBlur={() => handleRenameSubmit(entry.id)}
+                      onBlur={() => handleRenameSubmit(entry)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleRenameSubmit(entry.id);
+                        if (e.key === 'Enter') handleRenameSubmit(entry);
                         if (e.key === 'Escape') setRenamingId(null);
                       }}
                       onClick={(e) => e.stopPropagation()}
                       autoFocus
                     />
                   ) : (
-                    <span className="maps-item-name">{entry.name}</span>
+                    <span className="maps-item-name">
+                      {entry.name}
+                      {entry.source === 'cloud' && <span className="maps-cloud-badge">☁️</span>}
+                    </span>
                   )}
                   <span className="maps-item-date">
                     {formatDate(entry.updatedAt)}
@@ -128,7 +212,7 @@ export const MapsBrowser: React.FC<MapsBrowserProps> = ({ onClose }) => {
                   </button>
                   <button
                     className="maps-btn-delete"
-                    onClick={(e) => handleDelete(entry.id, e)}
+                    onClick={(e) => handleDelete(entry, e)}
                     title="Delete"
                   >
                     🗑️
