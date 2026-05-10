@@ -17,6 +17,12 @@ const AppContent: React.FC = () => {
   const [guestMode, setGuestMode] = useState(false);
   const [editTrigger, setEditTrigger] = useState<string | null>(null);
   const [view, setView] = useState<View>('dashboard');
+  const [wasAuthenticated, setWasAuthenticated] = useState(false);
+
+  // Track if user has ever been authenticated in this session
+  useEffect(() => {
+    if (user) setWasAuthenticated(true);
+  }, [user]);
 
   const startEditing = useCallback((id: string) => {
     setEditTrigger(id);
@@ -67,8 +73,8 @@ const AppContent: React.FC = () => {
     }).catch(() => {});
   }, [user, view]);
 
-  // Show login if Supabase is configured and user is not authenticated and not in guest mode
-  if (supabase && !user && !guestMode && !loading) {
+  // Show login only if never authenticated, not guest, and not loading
+  if (supabase && !user && !wasAuthenticated && !guestMode && !loading) {
     return <LoginPage onSkip={() => setGuestMode(true)} />;
   }
 
