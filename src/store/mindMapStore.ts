@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { MindMapNode, MindMapState } from '../types';
-import { updateMap as updateMapApi } from '../lib/mapsApi';
+import { updateMap as updateMapApi, createMap as createMapApi } from '../lib/mapsApi';
 
 const generateId = () => Math.random().toString(36).substring(2, 10);
 
@@ -124,15 +124,37 @@ function loadFromStorage(): { state: MindMapState; mapId: string | null } | null
   return null;
 }
 
-// Debounced cloud sync
+// Debounced cloud sync — creates map in Supabase if it doesn't exist yet
 let _syncTimer: ReturnType<typeof setTimeout> | null = null;
+let _creatingCloud = false;
 function debouncedCloudSync(state: MindMapState, mapId: string | null) {
-  if (!mapId) return;
   if (_syncTimer) clearTimeout(_syncTimer);
-  _syncTimer = setTimeout(() => {
-    updateMapApi(mapId, state).catch(() => {
-      // Silent fail — localStorage is the source of truth
-    });
+  _syncTimer = setTimeout(async () => {
+    if (mapId) {
+      updateMapApi(mapId, state).catch(() => {});
+    } else if (!_creatingCloud) {
+      // No mapId — try to create in Supabase
+      _creatingCloud = true;
+      try {
+        const rootNode = state.nodes[state.rootId];
+        const name = rootNode?.text || 'Untitled Map';
+        const cloudMap = await createMapApi(name, state);
+        const newId = cloudMap.id;
+        // Update store and local storage with cloud ID
+        const { useMindMapStore: store } = await import('./mindMapStore');
+        store.setState({ currentMapId: newId } as any);
+        const index = getMapsIndex();
+        index.push({ id: newId, name, createdAt: Date.now(), updatedAt: Date.now() });
+        saveMapsIndex(index);
+        const payload = JSON.stringify({ nodes: state.nodes, rootId: state.rootId, selectedId: state.selectedId });
+        localStorage.setItem(MAP_PREFIX + newId, payload);
+        localStorage.setItem('mindmap-active-map', newId);
+      } catch {
+        // Not authenticated or Supabase unavailable
+      } finally {
+        _creatingCloud = false;
+      }
+    }
   }, 1500);
 }
 
@@ -423,6 +445,8 @@ export const useMindMapStore = create<MindMapState & MindMapActions>((set, get) 
       const state = get();
       let mapId = state.currentMapId;
       const index = getMapsIndex();
+      const rootNode = state.nodes[state.rootId];
+      const mapName = name || rootNode?.text || 'Untitled Map';
 
       if (mapId) {
         // Update existing map
@@ -431,21 +455,36 @@ export const useMindMapStore = create<MindMapState & MindMapActions>((set, get) 
           if (name) entry.name = name;
           entry.updatedAt = Date.now();
         }
+        saveMapsIndex(index);
+        saveToStorage(state, mapId);
       } else {
-        // Save as new map
-        mapId = generateId();
-        const rootNode = state.nodes[state.rootId];
-        index.push({
-          id: mapId,
-          name: name || rootNode?.text || 'Untitled Map',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+        // Save as new map — try Supabase first, fall back to local
+        createMapApi(mapName, state).then((cloudMap) => {
+          mapId = cloudMap.id;
+          const idx = getMapsIndex();
+          idx.push({
+            id: mapId!,
+            name: mapName,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+          saveMapsIndex(idx);
+          set({ currentMapId: mapId } as any);
+          saveToStorage(state, mapId);
+        }).catch(() => {
+          // Not authenticated or Supabase unavailable — save locally
+          mapId = generateId();
+          index.push({
+            id: mapId,
+            name: mapName,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+          set({ currentMapId: mapId } as any);
+          saveMapsIndex(index);
+          saveToStorage(state, mapId);
         });
-        set({ currentMapId: mapId } as any);
       }
-
-      saveMapsIndex(index);
-      saveToStorage(state, mapId);
     },
 
     loadMap: (mapId: string) => {

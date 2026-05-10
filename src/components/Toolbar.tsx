@@ -5,10 +5,10 @@ import { exportToPng } from '../utils/exportPng';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ToolbarProps {
-  onShowMaps: () => void;
+  onBack: () => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ onShowMaps }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({ onBack }) => {
   const { user, signOut } = useAuth();
   const selectedId = useMindMapStore((s) => s.selectedId);
   const rootId = useMindMapStore((s) => s.rootId);
@@ -19,7 +19,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onShowMaps }) => {
   const undo = useMindMapStore((s) => s.undo);
   const redo = useMindMapStore((s) => s.redo);
   const loadState = useMindMapStore((s) => s.loadState);
-  const saveMap = useMindMapStore((s) => s.saveMap);
   const createNewMap = useMindMapStore((s) => s.createNewMap);
 
   const canDelete = selectedId && selectedId !== rootId;
@@ -45,14 +44,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onShowMaps }) => {
         <span className="toolbar-title">MindMap</span>
       </div>
       <div className="toolbar-group">
-        <button onClick={() => { saveMap(); createNewMap(); }} title="New Map">
+        <button onClick={onBack} title="Back to My Maps">
+          <span className="btn-icon">←</span> My Maps
+        </button>
+        <button onClick={() => createNewMap()} title="New Map">
           <span className="btn-icon">📄</span> New
-        </button>
-        <button onClick={() => saveMap()} title="Save Map">
-          <span className="btn-icon">💾</span> Save
-        </button>
-        <button onClick={onShowMaps} title="My Maps">
-          <span className="btn-icon">📋</span> My Maps
         </button>
       </div>
       <div className="toolbar-group">

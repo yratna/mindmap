@@ -34,12 +34,27 @@ export const MapsBrowser: React.FC<MapsBrowserProps> = ({ onClose }) => {
       setLoading(true);
       try {
         const cloudMaps = await fetchMaps();
-        setMaps(cloudMaps.map((m) => ({
+        const cloudList: DisplayMap[] = cloudMaps.map((m) => ({
           id: m.id,
           name: m.name,
           updatedAt: new Date(m.updated_at).getTime(),
           source: 'cloud' as const,
-        })));
+        }));
+        // Include current unsaved map if it's not in the cloud list
+        const curId = useMindMapStore.getState().currentMapId;
+        if (curId && !cloudList.find((m) => m.id === curId)) {
+          const localIndex = getMapsIndex();
+          const localEntry = localIndex.find((e) => e.id === curId);
+          if (localEntry) {
+            cloudList.unshift({
+              id: localEntry.id,
+              name: localEntry.name,
+              updatedAt: localEntry.updatedAt,
+              source: 'local' as const,
+            });
+          }
+        }
+        setMaps(cloudList);
       } catch {
         // Fallback to local
         setMaps(getMapsIndex().map((m) => ({
